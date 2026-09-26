@@ -1,120 +1,96 @@
 # CivicNet Wallet — Linux Binaries (blackshirt-crypto build)
 
-Pre-compiled Linux binaries for **CivicNet (CIVIC)**, built from a
-**patched fork of the official CivicNet v3.0.5 source code**.
+Pre-compiled Linux binaries for **CivicNet (CIVIC)**, built from the
+official CivicNet v3.0.8 source code.
 
-> **Why a patched build?** The official v3.0.5 Linux binaries contain a
-> consensus bug that causes all Linux nodes to stall at block 28427 — the
-> first PoS block after the August 21, 2026 emergency stake target reset.
-> Windows nodes are unaffected due to compiler differences (MSVC vs GCC).
-> This build applies two targeted fixes to `pos_kernel.cpp` and
-> `validation.cpp` that allow Linux nodes to sync and stay on the correct
-> chain. The fixes have been reported to the CivicNet developer.
+Built for Ubuntu 24.04 LTS / Linux Mint 22 (Boost 1.83, libfmt 9).
+Includes full HVL (Hybrid Value Layer) token support.
 
 ## What this is
 
-- CivicNet Core **v3.0.5** with Linux sync bug fix, compiled from source
-- Built for **Ubuntu 24.04 LTS / Linux Mint 22** (Boost 1.83, libfmt 9)
-- Three downloads:
-  - **CLI + daemon** (`civicnet-node`, `civicnet-cli`) — relay nodes, pool backends
-  - **Qt desktop wallet** (`civicnet-qt`) — graphical wallet with staking support
-
-## The Bug Fix (Technical Summary)
-
-After the PoS emergency stake target reset activated at block 28426
-(timestamp 1787302800), Linux nodes failed to accept block 28427's header
-with `bad-diffbits, incorrect stake target`.
-
-**Root cause:** `ComputeExpectedStakeTarget()` in `pos_kernel.cpp` read
-`pindexPrev->nStakeTarget` from disk for the emergency reset block, which
-still held the old stuck value (`0x1b0b3583`) rather than the reset value
-(`0x1e0ffff0`) — because the in-memory reset had not been flushed to disk
-before a node restart. Additionally, PoS `nBits` validation during
-header-only sync used chain context not yet available, causing false
-rejections for subsequent PoS blocks.
-
-**Fixes applied:**
-1. `pos_kernel.cpp` — force `baseTarget = 0x1e0ffff0` when `pindexPrev`
-   is the emergency reset block, regardless of disk value
-2. `validation.cpp` — guard PoS `nBits` header check with
-   `BLOCK_HAVE_DATA` so it only runs when full block data is available
+- CivicNet Core **v3.0.8**, compiled from official source
+- Built for **Ubuntu 24.04 LTS / Linux Mint 22**
+- CLI + daemon (civicnet-node, civicnet-cli) — relay nodes, pool backends, solo mining
+- Qt desktop wallet (civicnet-qt) — coming soon for v3.0.8
 
 ## Download
 
-Grab the latest build from [**Releases**](../../releases/latest).
+Grab the latest build from the [Releases](../../releases/latest) page.
 
 | Download | Contains | Use for |
 |----------|----------|---------|
-| `civicnet-cli-linux-v3.0.5.tar.gz` | `civicnet-node`, `civicnet-cli` | Headless nodes, servers, mining |
-| `civicnet-qt-linux-v3.0.5.tar.gz` | `civicnet-qt` | Desktop GUI wallet |
+| civicnet-core-linux-v3.0.8.tar.gz | civicnet-node, civicnet-cli | Headless nodes, servers, mining |
 
-## Quick Start — CLI / Daemon
+## Quick Start
 
 ```bash
-curl -L -o civicnet-cli-linux.tar.gz \
-  https://github.com/blackshirt-crypto/civicnet-wallet-linux/releases/download/v3.0.5/civicnet-cli-linux-v3.0.5.tar.gz
-tar xzf civicnet-cli-linux.tar.gz
+curl -L -o civicnet-core-linux-v3.0.8.tar.gz https://github.com/blackshirt-crypto/civicnet-wallet-linux/releases/download/v3.0.8/civicnet-core-linux-v3.0.8.tar.gz
+tar xzf civicnet-core-linux-v3.0.8.tar.gz
 chmod +x civicnet-node civicnet-cli
 ./civicnet-node -daemon
 ./civicnet-cli getblockchaininfo
 ```
 
-If you hit a missing-library error:
+## Upgrading from v3.0.7 or earlier
+
+v3.0.8 requires a one-time reindex after installing:
+
+```bash
+./civicnet-node -daemon -reindex-chainstate
+```
+
+Wait until the log shows: HVL canonical state: READY
+
+Then stop and restart normally without -reindex-chainstate.
+
+## Upgrading from v3.0.5 (blackshirt-crypto patched build)
+
+Our v3.0.5 patched build is now superseded. The Linux sync bug we fixed
+in v3.0.5 was properly resolved by ruglover69 in v3.0.6 via the unified
+PredictNextStakeTarget() function. v3.0.8 includes all fixes plus the
+full HVL token layer. Upgrade immediately — nodes on v3.0.5 are on a
+forked chain since August 26, 2026.
+
+## Dependencies
 
 ```bash
 sudo apt-get install libboost-filesystem-dev libboost-thread-dev libevent-dev libdb++-dev libfmt-dev
 ```
 
-## Quick Start — Qt Desktop Wallet
-
-```bash
-curl -L -o civicnet-qt-linux.tar.gz \
-  https://github.com/blackshirt-crypto/civicnet-wallet-linux/releases/download/v3.0.5/civicnet-qt-linux-v3.0.5.tar.gz
-tar xzf civicnet-qt-linux.tar.gz
-chmod +x civicnet-qt
-./civicnet-qt
-```
-
-Qt runtime dependencies if needed:
-
-```bash
-sudo apt-get install qtbase5-dev qttools5-dev libqrencode-dev libboost-filesystem-dev libfmt-dev
-```
-
 ## Verify It Yourself
 
-You can reproduce these binaries from our patched source:
-
 ```bash
-git clone https://github.com/blackshirt-crypto/civicnet-wallet-linux.git
+git clone https://github.com/CivicLight/CivicNet.git
+cd CivicNet
+git checkout v3.0.8
+./autogen.sh
+./configure --with-incompatible-bdb --disable-tests --disable-bench --without-gui
+make -j$(nproc)
 ```
 
-Or verify against the official source with patches applied manually —
-see the bug fix description above for exact files and changes.
+## Version History
 
-## Version / Hard-Fork Notes
+| Version | Notes |
+|---------|-------|
+| v3.0.8 | HVL Authority v2, canonical token state, consensus hardening |
+| v3.0.7 | HVL token layer introduced |
+| v3.0.6 | PoS stake target unification via PredictNextStakeTarget() |
+| v3.0.5* | blackshirt-crypto patched build - Linux sync bug fix (superseded) |
+| v3.0.3 | Original Ubuntu 24.04 compatible build |
 
-CivicNet is under active development and has had consensus-changing hard
-forks. **Always run the current version** so your node stays on the
-network. Check the official releases page:
-[github.com/CivicLight/CivicNet/releases](https://github.com/CivicLight/CivicNet/releases).
+## Add Our Relay Node
 
-## Credits & Attribution
+addnode=172.245.139.245:9333
 
-- **CivicNet Core** — coin, chain, and wallet/node source code by the
-  CivicNet / CivicLight developer:
-  [github.com/CivicLight/CivicNet](https://github.com/CivicLight/CivicNet)
-- **Bitcoin Core / Litecoin** — upstream codebase
-- **blackshirt-crypto** — Linux build + consensus bug fix
+## Credits
 
-All code is licensed under the MIT License.
+- CivicNet Core by ruglover69 / CivicLight: https://github.com/CivicLight/CivicNet
+- Bitcoin Core / Litecoin upstream codebase
+- blackshirt-crypto Linux builds for Ubuntu 24.04
 
 ## Disclaimer
 
 These binaries are provided as-is, with no warranty. Always verify you
-are running the current network version. Cryptocurrency involves risk;
-you are responsible for securing your own wallet and keys.
+are running the current network version.
 
----
-
-*Fixed build. Verify, don't trust.*
+Compiled from official source. Verify, dont trust.
